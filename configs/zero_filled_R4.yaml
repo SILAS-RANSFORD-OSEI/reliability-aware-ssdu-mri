@@ -1,0 +1,37 @@
+# Configuration for Experiment 001: Zero-Filled Reconstruction
+
+experiment:
+  name: zero_filled_R4
+  description: Zero-filled MRI reconstruction with Cartesian undersampling at acceleration factor R=4
+
+data:
+  dataset: fastMRI_brain
+  data_type: multicoil
+  split: validation
+  sample_file: null
+  slice_index: null
+
+undersampling:
+  mask_type: cartesian_random
+  acceleration: 4
+  center_fraction: 0.08
+  seed: 42
+
+reconstruction:
+  method: zero_filled
+  coil_combination: root_sum_of_squares
+  normalize_output: true
+
+metrics:
+  compute_nmse: true
+  compute_psnr: true
+  compute_ssim: false
+
+outputs:
+  save_figures: true
+  save_metrics: true
+  output_dir: results/experiment_001_zero_filled_R4
+
+notes:
+  status: planned
+  purpose: Establish the first zero-filled baseline before deep learning reconstruction.
