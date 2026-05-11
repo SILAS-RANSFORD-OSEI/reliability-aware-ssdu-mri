@@ -25,13 +25,13 @@ This checklist tracks the development progress of the reliability-aware self-sup
 
 ## Next Immediate Tasks
 
-- [ ] Create first Colab notebook
-- [ ] Connect Colab to GitHub repository
-- [ ] Test `fft2c` and `ifft2c`
-- [ ] Test Cartesian undersampling mask
-- [ ] Test zero-filled reconstruction on synthetic k-space
-- [ ] Download or access fastMRI brain data
-- [ ] Run zero-filled reconstruction on real brain MRI k-space
+- [x] Create first Colab notebook
+- [x] Connect Colab to GitHub repository
+- [x] Test `fft2c` and `ifft2c`
+- [x] Test Cartesian undersampling mask
+- [x] Test zero-filled reconstruction on synthetic k-space
+- [x] Download or access fastMRI brain data
+- [x] Run zero-filled reconstruction on real brain MRI k-space
 
 ---
 
@@ -80,13 +80,12 @@ This checklist tracks the development progress of the reliability-aware self-sup
 - [ ] Draft discussion and limitations
 
 ---
-
 ## Current Status
 
 The project is currently at:
 
-> Stage 1 complete: repository and documentation setup.
+> Stage 2 beginning: basic MRI physics pipeline tested on synthetic data.
 
 The next practical target is:
 
-> Test the basic MRI reconstruction utilities in Google Colab.
+> Run zero-filled reconstruction on real fastMRI brain k-space data.
