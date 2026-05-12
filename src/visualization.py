@@ -100,3 +100,39 @@ def show_full_and_crop(image, crop_size=(320, 320)):
     plt.show()
 
     return cropped
+
+def show_ssdu_masks(acquired_mask, theta_mask, lambda_mask):
+    """
+    Display the original acquired mask and the SSDU Theta/Lambda split.
+
+    Parameters
+    ----------
+    acquired_mask : np.ndarray
+        Original acquired k-space mask Omega.
+
+    theta_mask : np.ndarray
+        SSDU reconstruction/data-consistency mask Theta.
+
+    lambda_mask : np.ndarray
+        SSDU held-out loss mask Lambda.
+    """
+    plt.figure(figsize=(14, 3))
+
+    plt.subplot(3, 1, 1)
+    plt.imshow(acquired_mask[None, :], cmap="gray", aspect="auto")
+    plt.title("Original Acquired Mask Ω")
+    plt.axis("off")
+
+    plt.subplot(3, 1, 2)
+    plt.imshow(theta_mask[None, :], cmap="gray", aspect="auto")
+    plt.title("Theta Mask Θ: Reconstruction / Data Consistency")
+    plt.axis("off")
+
+    plt.subplot(3, 1, 3)
+    plt.imshow(lambda_mask[None, :], cmap="gray", aspect="auto")
+    plt.title("Lambda Mask Λ: Held Out for Self-Supervised Loss")
+    plt.axis("off")
+
+    plt.tight_layout()
+    plt.show()
+
