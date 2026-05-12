@@ -110,3 +110,48 @@ def get_kspace_slice(kspace, slice_index=None):
     kspace_slice = kspace[slice_index]
 
     return kspace_slice, slice_index
+
+from pathlib import Path
+
+
+def scan_fastmri_directory(data_dir):
+    """
+    Scan a directory of fastMRI HDF5 files and summarize metadata without loading full k-space arrays.
+
+    Parameters
+    ----------
+    data_dir : str or pathlib.Path
+        Directory containing fastMRI .h5 files.
+
+    Returns
+    -------
+    records : list of dict
+        One dictionary per file, containing filename, keys, attributes, k-space shape, mask shape, and dtypes.
+    """
+    data_dir = Path(data_dir)
+    h5_files = sorted(data_dir.glob("*.h5"))
+
+    records = []
+
+    for file_path in h5_files:
+        with h5py.File(file_path, "r") as hf:
+            record = {
+                "file_path": str(file_path),
+                "filename": file_path.name,
+                "keys": list(hf.keys()),
+                "attrs": dict(hf.attrs),
+                "kspace_shape": hf["kspace"].shape if "kspace" in hf else None,
+                "kspace_dtype": str(hf["kspace"].dtype) if "kspace" in hf else None,
+                "mask_shape": hf["mask"].shape if "mask" in hf else None,
+                "mask_dtype": str(hf["mask"].dtype) if "mask" in hf else None,
+                "has_reference": any(
+                    key in hf.keys()
+                    for key in ["reconstruction_rss", "reconstruction_esc", "target"]
+                ),
+            }
+
+            records.append(record)
+
+    return records
+
+
