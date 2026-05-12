@@ -84,8 +84,8 @@ This checklist tracks the development progress of the reliability-aware self-sup
 
 The project is currently at:
 
-> Stage 2 beginning: basic MRI physics pipeline tested on synthetic data.
+> Stage 2 active: real fastMRI brain data loaded and zero-filled reconstruction successfully tested.
 
 The next practical target is:
 
-> Run zero-filled reconstruction on real fastMRI brain k-space data.
+> Create a reusable fastMRI data-loading utility and prepare for quantitative evaluation.
