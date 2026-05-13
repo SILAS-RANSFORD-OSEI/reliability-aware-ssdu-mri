@@ -110,3 +110,93 @@ def ssdu_l2_loss(reconstructed_coil_images, measured_kspace, lambda_mask, eps=1e
     denominator = np.sum(np.abs(measured_heldout) ** 2) + eps
 
     return numerator / denominator
+
+
+def backproject_kspace_residual(residual):
+    """
+    Backproject a k-space residual into the image domain.
+
+    Parameters
+    ----------
+    residual : np.ndarray
+        Complex-valued k-space residual.
+
+        Expected shape:
+        coils x height x width
+
+    Returns
+    -------
+    residual_image_coils : np.ndarray
+        Complex-valued image-domain residual for each coil.
+    """
+    from transforms import ifft2c
+
+    residual_image_coils = ifft2c(residual)
+
+    return residual_image_coils
+
+
+def residual_energy_map(residual_image_coils, coil_axis=0):
+    """
+    Compute image-domain residual energy map from multicoil residual images.
+
+    Parameters
+    ----------
+    residual_image_coils : np.ndarray
+        Complex-valued image-domain residuals.
+
+        Expected shape:
+        coils x height x width
+
+    coil_axis : int
+        Axis corresponding to the coil dimension.
+
+    Returns
+    -------
+    energy_map : np.ndarray
+        Image-domain residual energy map.
+    """
+    energy_map = np.sum(np.abs(residual_image_coils) ** 2, axis=coil_axis)
+
+    return energy_map
+
+
+def heldout_residual_energy_map(reconstructed_coil_images, measured_kspace, lambda_mask):
+    """
+    Compute image-domain energy map from held-out k-space residual.
+
+    This combines:
+    1. Held-out k-space residual computation
+    2. Backprojection to image domain
+    3. Multicoil residual energy calculation
+
+    Parameters
+    ----------
+    reconstructed_coil_images : np.ndarray
+        Complex-valued reconstructed coil images.
+
+    measured_kspace : np.ndarray
+        Measured multicoil k-space.
+
+    lambda_mask : np.ndarray
+        Held-out Lambda mask.
+
+    Returns
+    -------
+    energy_map : np.ndarray
+        Image-domain held-out residual energy map.
+    """
+    residual = heldout_kspace_residual(
+        reconstructed_coil_images=reconstructed_coil_images,
+        measured_kspace=measured_kspace,
+        lambda_mask=lambda_mask,
+    )
+
+    residual_image_coils = backproject_kspace_residual(residual)
+
+    energy_map = residual_energy_map(
+        residual_image_coils=residual_image_coils,
+        coil_axis=0,
+    )
+
+    return energy_map
