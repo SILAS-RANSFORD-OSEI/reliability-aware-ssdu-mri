@@ -1,431 +1,542 @@
-# Four-Way Self-Supervised K-Space Partitioning for Residual-Calibrated Reliability Learning in Accelerated Brain MRI
+# Manuscript Outline
 
-> **Paper Type:** Methods / Feasibility Study
+## Proposed Title
 
----
-
-## Overview
-
-This paper proposes a **four-way self-supervised k-space partitioning framework** for residual-calibrated reliability learning in accelerated brain MRI.
-
-The method separates acquired k-space into four disjoint subsets — reconstruction input, reconstruction training loss, reliability calibration, and independent reliability evaluation:
-
-$$
-\Omega = \Theta \cup \Lambda_{\mathrm{train}} \cup \Lambda_{\mathrm{cal}} \cup \Lambda_{\mathrm{eval}}
-$$
-
-A `ReliabilityCNN` trained on calibration residual energy modestly improves held-out residual-energy prediction over input intensity in leave-one-volume-out validation, and clearly outperforms dropout uncertainty, edge maps, and reconstruction-intensity baselines.
+**Four-Way Self-Supervised K-Space Partitioning for Residual-Calibrated Reliability Learning in Accelerated Brain MRI**
 
 ---
 
-## Table of Contents
+## Paper Type
 
-- [Abstract](#abstract)
-- [Introduction](#introduction)
-- [Related Work](#related-work)
-- [Methods](#methods)
-- [Experiments](#experiments)
-- [Results](#results)
-- [Discussion](#discussion)
-- [Limitations](#limitations)
-- [Conclusion](#conclusion)
-- [Target Journal Positioning](#target-journal-positioning)
+Methods / feasibility study.
 
 ---
 
-## Abstract
+## Central Claim
 
-1. **Background:** Accelerated MRI reconstruction can produce spatially unreliable outputs.
-2. **Gap:** Self-supervised reconstruction methods such as SSDU do not directly provide independently calibrated reliability maps.
-3. **Method:** We propose four-way k-space partitioning and a residual-calibrated `ReliabilityCNN`.
-4. **Experiments:** fastMRI brain AXT2 / R=4, five-volume leave-one-volume-out validation.
-5. **Results:** `ReliabilityCNN` outperformed input intensity in 4/5 held-out volumes.
-6. **Conclusion:** Four-way SSDU partitioning enables feasible self-supervised residual reliability learning without fully sampled ground truth.
+This paper proposes a four-way self-supervised k-space partitioning framework for residual-calibrated reliability learning in accelerated brain MRI.
 
----
+The framework partitions acquired k-space into four disjoint subsets:
 
-## Introduction
+$$\Omega = \Theta \cup \Lambda_{\mathrm{train}} \cup \Lambda_{\mathrm{cal}} \cup \Lambda_{\mathrm{eval}}$$
 
-### Clinical and Engineering Motivation
+where:
 
-Accelerated MRI reduces scan time but increases reconstruction difficulty because images are recovered from undersampled k-space. Deep learning reconstruction can suppress aliasing artifacts, but reconstructed images may contain spatially varying errors.
+* $\Theta$ is used for reconstruction input,
+* $\Lambda_{\mathrm{train}}$ is used for self-supervised reconstruction training,
+* $\Lambda_{\mathrm{cal}}$ is used for reliability calibration,
+* $\Lambda_{\mathrm{eval}}$ is reserved for independent held-out reliability evaluation.
 
-In clinical settings, a visually plausible reconstruction is not sufficient — a reconstruction method should also indicate **where the output may be unreliable**.
+A ReliabilityCNN trained against calibration residual energy modestly improves held-out residual-energy prediction over input intensity in leave-one-volume-out validation and clearly outperforms dropout uncertainty, edge maps, and reconstruction-intensity baselines.
 
-### Problem With Fully Supervised Reliability Estimation
-
-Fully sampled reference images are often unavailable in realistic accelerated MRI settings. This limits the ability to train or validate reliability maps using image-domain ground-truth errors.
-
-### Existing Self-Supervised Reconstruction Methods
-
-Self-supervised methods such as **SSDU** split acquired k-space into an input subset and a loss subset, allowing reconstruction training without fully sampled targets. However, standard SSDU-style partitioning is primarily designed for reconstruction learning — not for separately training and independently evaluating reliability maps.
-
-### Gap
-
-Existing self-supervised MRI reconstruction pipelines do not clearly separate:
-
-- Reconstruction input
-- Reconstruction training loss
-- Reliability calibration
-- Final reliability evaluation
-
-This creates a risk of **circularity** when the same hidden k-space evidence is used for multiple roles.
-
-### Proposed Solution
-
-We propose a four-way k-space partitioning framework:
-
-$$
-\Omega = \Theta \cup \Lambda_{\mathrm{train}} \cup \Lambda_{\mathrm{cal}} \cup \Lambda_{\mathrm{eval}}
-$$
-
-This enables residual-calibrated reliability learning using **acquired k-space only**.
-
-### Contributions
-
-1. A four-way self-supervised k-space partitioning framework for reliability learning.
-2. A residual-energy calibration target derived from held-out acquired k-space.
-3. A structural `ReliabilityCNN` defined as:
-
-$$
-R_{\phi} = h_{\phi}(x_{\Theta},\ \hat{x},\ |\nabla \hat{x}|)
-$$
-
-4. Leave-one-volume-out validation across five matched AXT2 / R=4 fastMRI brain volumes.
-5. Empirical comparison against input intensity, dropout uncertainty, reconstruction intensity, and edge-map baselines.
+This paper does **not** claim clinical uncertainty calibration or image-domain error prediction. The claim is limited to **residual-calibrated reliability prediction using held-out acquired k-space consistency**.
 
 ---
 
-## Related Work
+# 1. Abstract
 
-### Accelerated MRI Reconstruction
+## Structure
 
-The MRI acquisition problem is:
-
-$$
-y_{\Omega} = M_{\Omega} F x + \varepsilon
-$$
-
-| Symbol | Description |
-|--------|-------------|
-| $x \in \mathbb{C}^{N}$ | Unknown MR image |
-| $F$ | Fourier transform |
-| $M_{\Omega}$ | Undersampling mask |
-| $y_{\Omega}$ | Acquired k-space |
-| $\varepsilon$ | Measurement noise |
-
-Classical reconstruction methods include compressed sensing and parallel imaging. More recent methods use deep learning, including CNN-based, unrolled, and physics-guided reconstruction networks.
-
-### Self-Supervised MRI Reconstruction
-
-SSDU and related strategies train reconstruction networks using only acquired undersampled k-space by splitting it into an **input subset** and a **loss subset**, enabling learning without fully sampled reference images.
-
-### Uncertainty and Reliability in MRI Reconstruction
-
-Uncertainty and reliability estimation are important because deep reconstruction models may produce visually plausible but spatially unreliable images. Existing strategies include:
-
-- MC dropout
-- Bayesian approximations
-- Ensemble methods
-- Residual consistency checks
-- Calibration-based approaches
-
-> This paper focuses on **residual-calibrated reliability**, not full clinical uncertainty calibration.
-
-### Gap in Current Literature
-
-Existing approaches often evaluate reconstruction quality, but fewer methods independently calibrate and evaluate spatial reliability using held-out acquired k-space residuals. This motivates a partitioning framework that **separates** reconstruction training, reliability calibration, and reliability evaluation.
+1. **Background:** Accelerated MRI reduces scan time but creates a difficult inverse problem because images are reconstructed from undersampled k-space.
+2. **Problem:** Deep reconstruction models may produce spatially unreliable outputs, and fully sampled reference images are often unavailable for supervised reliability estimation.
+3. **Gap:** Existing self-supervised reconstruction methods such as SSDU enable training without fully sampled targets, but they do not explicitly separate reconstruction training, reliability calibration, and independent reliability evaluation.
+4. **Method:** We propose a four-way k-space partitioning framework and a residual-calibrated ReliabilityCNN.
+5. **Experiments:** The method is evaluated on five matched fastMRI brain AXT2/R=4 volumes using leave-one-volume-out validation.
+6. **Results:** The ReliabilityCNN outperformed input intensity in four out of five held-out volumes and clearly outperformed dropout uncertainty and edge-based baselines.
+7. **Conclusion:** Four-way k-space partitioning provides a feasible self-supervised framework for residual-calibrated reliability learning without fully sampled ground truth.
 
 ---
 
-## Methods
+# 2. Introduction
 
-### Forward Model
+## 2.1 Clinical and Engineering Motivation
 
-$$
-y_{\Omega} = M_{\Omega} F x + \varepsilon
-$$
+Accelerated MRI aims to reduce scan time by acquiring fewer k-space samples. This improves patient comfort, reduces motion artifacts, and increases scanner throughput.
 
-where $x \in \mathbb{C}^{H \times W}$ is the unknown complex-valued MR image. For the current feasibility study, one selected coil is used, producing a **single-coil-equivalent** reconstruction setting.
+However, reducing k-space sampling creates an ill-posed inverse problem. The image must be reconstructed from incomplete Fourier measurements, which can introduce aliasing artifacts, noise amplification, and spatially varying reconstruction errors.
+
+Deep learning reconstruction methods can produce visually plausible images from undersampled k-space. However, visual plausibility alone is not sufficient. A reconstruction method should also indicate where the reconstructed image may be unreliable.
+
+## 2.2 Reliability Problem in Accelerated MRI
+
+In clinical imaging, reconstruction errors can be problematic when they occur near diagnostically important structures.
+
+A model may remove visible aliasing while still producing local errors, suppressing subtle structures, or amplifying residual artifacts. Therefore, accelerated MRI reconstruction requires not only image recovery but also reliability estimation.
+
+A reliability map should answer:
+
+> Where is the reconstruction likely to be inconsistent with the acquired measurement data?
+
+## 2.3 Challenge of Fully Supervised Reliability Estimation
+
+Fully supervised reliability estimation usually requires fully sampled reference images or known image-domain error maps.
+
+In many accelerated MRI settings, fully sampled references are unavailable, expensive, or impractical to acquire. This limits the ability to train voxel-wise reliability predictors using direct ground-truth image errors.
+
+This motivates self-supervised approaches that estimate reliability using only acquired undersampled k-space.
+
+## 2.4 Existing Self-Supervised Reconstruction Methods
+
+Self-supervised methods such as SSDU use acquired k-space splitting to train reconstruction models without fully sampled reference images.
+
+Standard SSDU partitions acquired k-space into:
+
+$$\Omega = \Theta \cup \Lambda$$
+
+where $\Theta$ is used as reconstruction input and $\Lambda$ is used as a self-supervised loss subset.
+
+This is effective for reconstruction training. However, when the goal is reliability estimation, the same hidden k-space evidence should not be reused for multiple roles.
+
+## 2.5 Gap in Current Methods
+
+Existing self-supervised MRI reconstruction pipelines do not explicitly separate:
+
+* reconstruction input,
+* reconstruction training loss,
+* reliability calibration,
+* final independent reliability evaluation.
+
+This creates a circularity risk when the same held-out data are used for reconstruction supervision, reliability tuning, and evaluation.
+
+## 2.6 Proposed Solution
+
+We propose a four-way self-supervised k-space partitioning framework:
+
+$$\Omega = \Theta \cup \Lambda_{\mathrm{train}} \cup \Lambda_{\mathrm{cal}} \cup \Lambda_{\mathrm{eval}}$$
+
+This framework separates reconstruction learning from reliability calibration and final reliability evaluation.
+
+The proposed ReliabilityCNN predicts a residual-calibrated reliability map from reconstruction-derived structural features:
+
+$$R_{\phi} = h_{\phi} ( x_{\Theta}, \hat{x}, |\nabla \hat{x}| )$$
+
+where:
+
+* $x_{\Theta}$ is the image reconstructed from the input subset,
+* $\hat{x}$ is the SSDU reconstruction,
+* $|\nabla \hat{x}|$ is the reconstruction gradient magnitude,
+* $R_{\phi}$ is the predicted reliability map.
+
+## 2.7 Contributions
+
+The contributions of this work are:
+
+1. A four-way self-supervised k-space partitioning framework for residual-calibrated reliability learning.
+2. A calibration target based on backprojected held-out k-space residual energy.
+3. A structural ReliabilityCNN that predicts residual-energy reliability maps from reconstruction-derived features.
+4. Leave-one-volume-out validation across five matched fastMRI brain AXT2/R=4 volumes.
+5. Baseline comparison against input intensity, mean reconstruction intensity, edge magnitude, and dropout uncertainty.
+6. A cautious feasibility analysis showing modest improvement over input intensity and clear improvement over dropout and edge-based baselines.
 
 ---
 
-### Four-Way K-Space Partitioning
+# 3. Related Work
 
-$$
-\Omega = \Theta \cup \Lambda_{\mathrm{train}} \cup \Lambda_{\mathrm{cal}} \cup \Lambda_{\mathrm{eval}}
-$$
+## 3.1 Accelerated MRI Reconstruction
 
-All subsets are **pairwise disjoint**.
+MRI measures data in k-space, the Fourier domain of the image. Accelerated MRI undersamples k-space to reduce scan time.
 
-| Subset | Role |
-|--------|------|
-| $\Theta$ | Reconstruction input and data-consistency subset |
-| $\Lambda_{\mathrm{train}}$ | SSDU reconstruction training-loss subset |
-| $\Lambda_{\mathrm{cal}}$ | Reliability calibration subset |
-| $\Lambda_{\mathrm{eval}}$ | Independent reliability evaluation subset |
+For a multicoil acquisition, the forward model can be written as:
 
-This design prevents the same acquired k-space samples from being reused for reconstruction training, reliability calibration, and final reliability evaluation.
+$$y_{\Omega,c} = M_{\Omega} F(S_c x) + \varepsilon_c$$
 
-> See **Figure 1**.
+where:
+
+* $x \in \mathbb{C}^{H \times W}$ is the unknown complex-valued image,
+* $c$ indexes the receiver coil,
+* $S_c$ is the coil sensitivity map for coil $c$,
+* $F$ is the Fourier transform,
+* $M_{\Omega}$ is the undersampling mask over acquired k-space locations,
+* $y_{\Omega,c}$ is the acquired k-space for coil $c$,
+* $\varepsilon_c$ is measurement noise.
+
+Classical methods include parallel imaging and compressed sensing. Recent methods include CNN-based reconstructions, unrolled networks, and physics-guided deep learning models.
+
+## 3.2 Self-Supervised MRI Reconstruction
+
+Self-supervised MRI reconstruction methods train reconstruction models without fully sampled image targets.
+
+SSDU is a key example. It divides acquired k-space into input and loss subsets, allowing the network to learn from acquired data alone.
+
+However, SSDU is primarily reconstruction-oriented. It does not explicitly define separate subsets for reliability calibration and independent reliability evaluation.
+
+## 3.3 Reliability and Uncertainty in MRI Reconstruction
+
+Reliability and uncertainty estimation are important because deep reconstruction models can produce visually convincing but locally unreliable images.
+
+Existing uncertainty strategies include:
+
+* Monte Carlo dropout,
+* Bayesian approximations,
+* ensembles,
+* data-consistency residuals,
+* calibration-based uncertainty methods.
+
+This paper focuses on **residual-calibrated reliability**, not statistical uncertainty calibration.
+
+The predicted map should be interpreted as a map of agreement with held-out acquired k-space residual structure, not as a probabilistic confidence interval or clinical diagnostic certainty map.
+
+## 3.4 Literature Gap
+
+Few methods explicitly separate reconstruction training, reliability calibration, and independent reliability evaluation using only acquired k-space.
+
+This motivates the proposed four-way partitioning framework.
 
 ---
 
-### SSDU Reconstruction Training
+# 4. Methods
 
-The reconstruction network receives $y_{\Theta}$ and estimates:
+## 4.1 MRI Forward Model
 
-$$
-\hat{x}_{\theta} = f_{\theta}(y_{\Theta})
-$$
+The full multicoil MRI acquisition model is:
+
+$$y_{\Omega,c} = M_{\Omega}F(S_cx)+\varepsilon_c$$
+
+where:
+
+* $x \in \mathbb{C}^{H \times W}$ is the target image,
+* $S_c$ is the sensitivity profile of coil $c$,
+* $F$ is the Fourier transform,
+* $M_{\Omega}$ is the sampling mask,
+* $y_{\Omega,c}$ is the undersampled k-space measurement,
+* $\varepsilon_c$ is measurement noise.
+
+In this feasibility study, we use one selected coil as a single-coil-equivalent setting:
+
+$$y_{\Omega} = M_{\Omega}Fx+\varepsilon$$
+
+This simplification isolates the proposed reliability-learning framework before extending to full multicoil sensitivity-encoded reconstruction.
+
+## 4.2 Four-Way K-Space Partitioning
+
+The acquired sampling set $\Omega$ is partitioned into four pairwise disjoint subsets:
+
+$$\Omega = \Theta \cup \Lambda_{\mathrm{train}} \cup \Lambda_{\mathrm{cal}} \cup \Lambda_{\mathrm{eval}}$$
+
+with:
+
+$$\Theta \cap \Lambda_{\mathrm{train}} = \Theta \cap \Lambda_{\mathrm{cal}} = \Theta \cap \Lambda_{\mathrm{eval}} = \Lambda_{\mathrm{train}} \cap \Lambda_{\mathrm{cal}} = \Lambda_{\mathrm{train}} \cap \Lambda_{\mathrm{eval}} = \Lambda_{\mathrm{cal}} \cap \Lambda_{\mathrm{eval}} = \emptyset$$
+
+The roles are:
+
+* $\Theta$: reconstruction input and data consistency subset,
+* $\Lambda_{\mathrm{train}}$: SSDU reconstruction training subset,
+* $\Lambda_{\mathrm{cal}}$: reliability calibration subset,
+* $\Lambda_{\mathrm{eval}}$: final independent reliability evaluation subset.
+
+This design avoids using the same k-space samples for both reliability training and final reliability evaluation.
+
+Reference: Figure 1.
+
+## 4.3 SSDU Reconstruction Training
+
+The reconstruction network receives the input subset $y_{\Theta}$ and estimates:
+
+$$\hat{x}_{\theta} = f_{\theta}(y_{\Theta})$$
 
 The predicted k-space is:
 
-$$
-\hat{y} = F \hat{x}_{\theta}
-$$
+$$\hat{y} = F\hat{x}_{\theta}$$
 
 The SSDU reconstruction loss is:
 
-$$
-\mathcal{L}_{\mathrm{SSDU}} = \left\| M_{\Lambda_{\mathrm{train}}} (\hat{y} - y) \right\|_2^2
-$$
+$$\mathcal{L}_{\mathrm{SSDU}} = \left\| M_{\Lambda_{\mathrm{train}}} (\hat{y}-y) \right\|_2^2$$
 
----
+where $M_{\Lambda_{\mathrm{train}}}$ selects k-space locations assigned to the SSDU training subset.
 
-### Calibration Residual Energy
+## 4.4 Calibration Residual Energy
 
-The calibration residual:
+After reconstruction, the calibration residual is:
 
-$$
-r_{\Lambda_{\mathrm{cal}}} = M_{\Lambda_{\mathrm{cal}}} (\hat{y} - y)
-$$
+$$r_{\Lambda_{\mathrm{cal}}} = M_{\Lambda_{\mathrm{cal}}} (\hat{y}-y)$$
 
-The backprojected calibration residual energy (reliability learning target):
+The calibration residual is backprojected into image space:
 
-$$
-E_{\Lambda_{\mathrm{cal}}} = \left| F^{-1} r_{\Lambda_{\mathrm{cal}}} \right|^2
-$$
+$$E_{\Lambda_{\mathrm{cal}}} = \left| F^{-1} r_{\Lambda_{\mathrm{cal}}} \right|^2$$
 
----
+This map is used as the residual-calibration target for reliability learning.
 
-### Evaluation Residual Energy
+## 4.5 Evaluation Residual Energy
 
-The held-out evaluation residual:
+The independent evaluation residual is:
 
-$$
-r_{\Lambda_{\mathrm{eval}}} = M_{\Lambda_{\mathrm{eval}}} (\hat{y} - y)
-$$
+$$r_{\Lambda_{\mathrm{eval}}} = M_{\Lambda_{\mathrm{eval}}} (\hat{y}-y)$$
 
-The evaluation residual energy:
+The corresponding evaluation residual energy is:
 
-$$
-E_{\Lambda_{\mathrm{eval}}} = \left| F^{-1} r_{\Lambda_{\mathrm{eval}}} \right|^2
-$$
+$$E_{\Lambda_{\mathrm{eval}}} = \left| F^{-1} r_{\Lambda_{\mathrm{eval}}} \right|^2$$
 
-> $E_{\Lambda_{\mathrm{eval}}}$ is **never used** during reconstruction training or reliability calibration — it is reserved only for final reliability evaluation.
+This map is never used for reconstruction training or reliability calibration. It is reserved for final evaluation.
 
----
+## 4.6 ReliabilityCNN
 
-### ReliabilityCNN
+The ReliabilityCNN receives a three-channel feature stack:
 
-**Input:**
+$$z = [ x_{\Theta}, \hat{x}, |\nabla \hat{x}| ]$$
 
-$$
-z = \left[ x_{\Theta},\ \hat{x},\ |\nabla \hat{x}| \right]
-$$
+where:
 
-| Component | Description |
-|-----------|-------------|
-| $x_{\Theta}$ | Input image reconstructed from $\Theta$ |
-| $\hat{x}$ | SSDU reconstruction |
-| $\|\nabla \hat{x}\|$ | Reconstruction gradient magnitude |
+* $x_{\Theta}$ is the input reconstruction from $\Theta$,
+* $\hat{x}$ is the SSDU reconstruction,
+* $|\nabla \hat{x}|$ is the reconstruction gradient magnitude.
 
-**Tensor shape:**
+The tensor shape is:
 
-$$
-z \in \mathbb{R}^{1 \times 3 \times 768 \times 396}
-$$
+$$z \in \mathbb{R}^{1 \times 3 \times 768 \times 396}$$
 
-*(batch=1, channels=3, height=768, width=396)*
+where:
 
-**Output:**
+* $1$ is the batch size,
+* $3$ is the number of input channels,
+* $768$ is image height,
+* $396$ is image width.
 
-$$
-R_{\phi} = h_{\phi}(z) \in \mathbb{R}^{1 \times 1 \times 768 \times 396}
-$$
+The network predicts:
 
-**Training loss:**
+$$R_{\phi} = h_{\phi}(z)$$
 
-$$
-\mathcal{L}_{\mathrm{rel}} = \left\| \mathrm{norm}(R_{\phi}) - \mathrm{norm}(E_{\Lambda_{\mathrm{cal}}}) \right\|_2^2
-$$
+with:
+
+$$R_{\phi} \in \mathbb{R}^{1 \times 1 \times 768 \times 396}$$
+
+The reliability training loss is:
+
+$$\mathcal{L}_{\mathrm{rel}} = \left\| \mathrm{norm}(R_{\phi}) - \mathrm{norm}(E_{\Lambda_{\mathrm{cal}}}) \right\|_2^2$$
 
 where $\mathrm{norm}(\cdot)$ denotes min-max normalization.
 
-> See **Figure 2**.
+Reference: Figure 2.
+
+## 4.7 Baseline Reliability Maps
+
+The proposed ReliabilityCNN is compared with:
+
+* input intensity,
+* mean reconstruction intensity,
+* edge magnitude,
+* dropout uncertainty.
+
+Monte Carlo dropout is used only as a baseline and not as the central method.
+
+## 4.8 Alignment Metric
+
+Reliability quality is evaluated by map alignment:
+
+$$\rho(R, E_{\Lambda_{\mathrm{eval}}})$$
+
+where:
+
+* $R$ is a candidate reliability map,
+* $E_{\Lambda_{\mathrm{eval}}}$ is the held-out evaluation residual energy,
+* $\rho$ is a correlation-based alignment metric.
 
 ---
 
-### Alignment Metric
+# 5. Experiments
 
-Reliability quality is measured by alignment between a candidate map and the held-out residual energy:
+## 5.1 Dataset
 
-$$
-\rho(R,\ E_{\Lambda_{\mathrm{eval}}})
-$$
+The experiments use fastMRI brain multicoil data.
 
-**Evaluated maps:**
+The feasibility subset is restricted to:
 
-- `ReliabilityCNN` prediction
-- Input intensity
-- Mean reconstruction intensity
-- Edge map
-- Dropout uncertainty
+* acquisition: AXT2,
+* acceleration: R = 4,
+* k-space shape: $16 \times 16 \times 768 \times 396$,
+* mask shape: $396$,
+* five matched volumes,
+* one selected coil.
 
----
+The selected-coil setup is used to isolate the residual-calibrated reliability-learning framework.
 
-## Experiments
-
-### Dataset
-
-| Property | Value |
-|----------|-------|
-| Source | fastMRI brain multicoil test data |
-| Acquisition | AXT2 |
-| Acceleration | R = 4 |
-| K-space shape | $16 \times 16 \times 768 \times 396$ |
-| Mask shape | $396$ |
-| Volumes | 5 matched |
-| Coils | 1 selected |
-
-### Experiment Progression
+## 5.2 Experiment Progression
 
 | Experiment | Purpose | Main Finding |
-|------------|---------|--------------|
+| --- | --- | --- |
 | 017 | Four-way split verification | Confirmed disjoint partitioning |
 | 018 | Four-way reliability evaluation | Independent reliability signal survived |
-| 024 | Per-slice ReliabilityCNN | Beat dropout and edge, not input intensity |
+| 024 | Per-slice ReliabilityCNN | Beat dropout and edge, but not input intensity |
 | 025 | Cross-slice ReliabilityCNN | Beat input intensity within one volume |
 | 026 | Dropout channel test | Dropout channel degraded performance |
 | 027 | One-volume cross-volume test | Partial transfer only |
 | 028 | Multi-volume training | Reached input-intensity parity |
 | 029 | Leave-one-volume-out validation | Beat input intensity in 4/5 held-out volumes |
 
-### Leave-One-Volume-Out Validation (Experiment 029)
+## 5.3 Leave-One-Volume-Out Validation
 
-$$
-4\ \text{volumes train} \rightarrow 1\ \text{volume test}
-$$
+Experiment 029 uses five-fold leave-one-volume-out validation:
 
-| Split | Slices |
-|-------|--------|
-| Training per fold | 64 slices |
-| Held-out test per fold | 16 slices |
+$$4 \text{ volumes train} \rightarrow 1 \text{ volume test}$$
+
+Each fold uses:
+
+* 64 training slices,
+* 16 held-out test slices.
+
+Because only five volumes are used, results are interpreted as observed feasibility trends rather than claims of statistical significance.
 
 ---
 
-## Results
+# 6. Results
 
-### Experiment 029 — Main Result
+## 6.1 Main Leave-One-Volume-Out Result
+
+Across five held-out volumes:
 
 | Method | Mean Alignment |
-|--------|---------------|
-| **ReliabilityCNN** | **0.5713** |
+| --- | --- |
+| ReliabilityCNN | 0.5713 |
 | Input intensity | 0.5580 |
-| Mean reconstruction intensity | 0.4980 |
 | Dropout uncertainty | 0.4900 |
+| Mean reconstruction intensity | 0.4980 |
 | Edge map | 0.4005 |
 
-**Margins over baselines:**
+Mean margins:
 
-$$
-R_{\mathrm{net}} - I_{\mathrm{input}} = +0.0132
-$$
+$$R_{\mathrm{net}} - I_{\mathrm{input}} = +0.0132$$
 
-$$
-R_{\mathrm{net}} - U_{\mathrm{dropout}} = +0.0813
-$$
+$$R_{\mathrm{net}} - U_{\mathrm{dropout}} = +0.0813$$
 
-$$
-R_{\mathrm{net}} - E_{\mathrm{edge}} = +0.1708
-$$
+$$R_{\mathrm{net}} - E_{\mathrm{edge}} = +0.1708$$
 
-> See **Figures 3 and 4**.
+Reference: Figures 3 and 4.
 
-### Volume-Level Results
+## 6.2 Full Leave-One-Volume-Out Fold Table
 
-`ReliabilityCNN` beat input intensity in **4 out of 5** held-out volumes.
+| Fold | Held-Out Volume | ReliabilityCNN | Input Intensity | Margin |
+| --- | --- | --- | --- | --- |
+| 1 | file_brain_AXT2_200_6002495.h5 | 0.5657 | 0.5529 | +0.0128 |
+| 2 | file_brain_AXT2_200_6002623.h5 | 0.5733 | 0.5546 | +0.0187 |
+| 3 | file_brain_AXT2_200_6002398.h5 | 0.5449 | 0.5364 | +0.0085 |
+| 4 | file_brain_AXT2_200_2000341.h5 | 0.5916 | 0.5641 | +0.0275 |
+| 5 | file_brain_AXT2_200_2000271.h5 | 0.5808 | 0.5821 | -0.0013 |
 
-> See **Figure 4**.
+The ReliabilityCNN outperformed input intensity in four out of five held-out volumes.
 
-### Representative Visual Example
+Because of the small number of volumes, this is reported as a modest observed improvement rather than a statistically significant improvement.
 
-**Fold 4, Volume V4, Slice 15:**
+## 6.3 Representative Visual Example
 
-| Map | Alignment |
-|-----|----------:|
-| **ReliabilityCNN** | **0.5749** |
+For Fold 4, Volume V4, Slice 15:
+
+| Map | Alignment With Held-Out Eval Residual |
+| --- | --- |
+| ReliabilityCNN | 0.5749 |
 | Input intensity | 0.4595 |
 | Mean reconstruction | 0.4553 |
 | Dropout uncertainty | 0.3617 |
 | Edge map | 0.2614 |
 
-> See **Figure 5**.
+Reference: Figure 5.
 
 ---
 
-## Discussion
+# 7. Discussion
 
-### Main Finding
+## 7.1 Main Finding
 
-The four-way SSDU framework enables residual-calibrated reliability learning **without fully sampled ground truth**.
+The proposed four-way SSDU framework enables residual-calibrated reliability learning without fully sampled ground truth.
 
-### Why Four-Way Partitioning Matters
+In leave-one-volume-out validation, the ReliabilityCNN showed modest improvement over input intensity and clear improvement over dropout uncertainty and edge-based baselines.
 
-The four-way split prevents the same acquired k-space subset from being reused for reconstruction training, reliability calibration, and final reliability evaluation. This makes the reliability evaluation more independent than standard two-way reconstruction-oriented SSDU partitioning.
+## 7.2 Why Four-Way Partitioning Matters
 
-### Interpretation of ReliabilityCNN Behavior
+The four-way partition separates:
 
-The model learns a structural reliability map from input intensity, reconstruction intensity, and edge information. Its improvement over input intensity is modest — raw anatomical and intensity structure remains a strong baseline — but `ReliabilityCNN` **consistently outperforms** dropout uncertainty and edge maps.
+* reconstruction input,
+* reconstruction training,
+* reliability calibration,
+* independent reliability evaluation.
 
-### Clinical Interpretation Caution
+This makes the reliability evaluation less circular than standard two-way SSDU-style partitioning.
 
-> ⚠️ The predicted reliability maps should be interpreted as **residual-energy reliability maps**, not lesion probability maps or fully calibrated diagnostic uncertainty maps. The held-out residual energy is a physics-derived consistency signal, not a direct clinical ground-truth error map.
+## 7.3 Interpretation of the ReliabilityCNN
+
+The ReliabilityCNN learns a structural residual-reliability map from input intensity, reconstruction intensity, and edge information.
+
+The improvement over input intensity is modest, which indicates that anatomical intensity structure is already a strong predictor of held-out residual energy.
+
+However, the learned ReliabilityCNN improves over intensity in most held-out volumes and clearly outperforms dropout uncertainty and edge maps.
+
+## 7.4 Interpretation of Residual Energy
+
+The held-out residual energy is a physics-derived consistency signal from acquired k-space.
+
+It should not be interpreted as:
+
+* lesion probability,
+* diagnostic uncertainty,
+* fully sampled image-domain error,
+* calibrated probabilistic confidence.
+
+It is a self-supervised residual-consistency target.
+
+## 7.5 Statistical Caution
+
+The current study uses five matched volumes. Therefore, results should be interpreted as preliminary feasibility evidence.
+
+The paper should use language such as:
+
+* observed improvement,
+* modest improvement,
+* feasibility evidence,
+* held-out residual-energy prediction.
+
+The paper should avoid language such as:
+
+* statistically significant superiority,
+* clinically validated uncertainty,
+* robust scanner-general reliability.
 
 ---
 
-## Limitations
+# 8. Limitations
 
-- Five volumes only
-- One selected coil (single-coil-equivalent setup)
-- One acquisition type (AXT2)
-- One acceleration factor (R = 4)
-- No fully sampled image-domain reference
-- No multicoil sensitivity encoding (SENSE/ESPIRiT)
-- No radiologist reader study
-- No external scanner or protocol validation
+Current limitations include:
 
----
+* five volumes only,
+* one selected coil,
+* single-coil-equivalent implementation,
+* one acquisition type,
+* one acceleration factor,
+* no fully sampled image-domain reference error,
+* no multicoil sensitivity-encoded reconstruction,
+* no external scanner or protocol validation,
+* no radiologist reader study.
 
-## Conclusion
-
-This work proposes a **four-way self-supervised k-space partitioning framework** for residual-calibrated reliability learning in accelerated brain MRI.
-
-Leave-one-volume-out validation shows that multi-volume `ReliabilityCNN` training modestly improves held-out residual-energy prediction over input intensity and **clearly outperforms** dropout uncertainty and edge-based baselines.
-
-The method is best interpreted as a **self-supervised feasibility framework** for reliability learning without fully sampled reference images.
+These limitations mean the work should be framed as a feasibility/methods study rather than a clinical validation paper.
 
 ---
 
-## Target Journal Positioning
+# 9. Conclusion
 
-**Suitable as:**
-- A Scopus-indexed methods paper
-- A biomedical signal or image processing paper
-- A medical imaging engineering feasibility paper
+This work proposes a four-way self-supervised k-space partitioning framework for residual-calibrated reliability learning in accelerated brain MRI.
 
-**Not yet suitable as:**
-- A full clinical validation paper
-- An IEEE TMI-level benchmark paper
-- A clinically calibrated uncertainty paper
+The framework separates reconstruction input, reconstruction training, reliability calibration, and independent reliability evaluation.
+
+In leave-one-volume-out validation across five matched AXT2/R=4 fastMRI brain volumes, the proposed ReliabilityCNN modestly improved held-out residual-energy prediction over input intensity and clearly outperformed dropout uncertainty and edge-based baselines.
+
+The method is best interpreted as a self-supervised feasibility framework for residual-calibrated reliability learning without fully sampled reference images.
+
+---
+
+# 10. Target Journal Positioning
+
+This work is suitable as:
+
+* a Scopus-indexed methods paper,
+* a biomedical signal or image processing paper,
+* a medical imaging engineering feasibility paper.
+
+It is not yet suitable as:
+
+* a full clinical validation paper,
+* an IEEE TMI-level benchmark paper,
+* a clinically calibrated uncertainty paper.
+
+Potential journal directions include:
+
+* Magnetic Resonance Imaging,
+* Biomedical Signal Processing and Control,
+* Computerized Medical Imaging and Graphics,
+* Computers in Biology and Medicine.
